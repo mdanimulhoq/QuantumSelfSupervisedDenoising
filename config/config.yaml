@@ -1,0 +1,12 @@
+﻿defaults:
+  - model: set_transformer
+  - data/circuits: default
+  - data/noise: depolarizing
+  - data/collection: default
+  - training: default
+  - _self_
+
+project_name: n2ln-qem
+seed: 42
+device: auto
+output_dir: ./outputs

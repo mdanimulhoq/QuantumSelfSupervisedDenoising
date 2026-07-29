@@ -1,0 +1,13 @@
+[build-system] 
+requires = ["setuptools>=75.0", "wheel"] 
+build-backend = "setuptools.build_meta" 
+ 
+[project] 
+name = "n2ln-qem" 
+version = "0.1.0" 
+description = "Noise-to-Less-Noise Quantum Error Mitigation" 
+readme = "README.md" 
+requires-python = ">=3.10" 
+ 
+[project.optional-dependencies] 
+dev = ["pytest", "pytest-cov", "mypy"] 

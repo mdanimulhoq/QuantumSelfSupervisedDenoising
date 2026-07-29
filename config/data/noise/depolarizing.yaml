@@ -1,0 +1,6 @@
+﻿# Noise Model Parameters (TDD 5.3)
+name: depolarizing
+depolarizing_p: 0.01
+readout_error: 0.02
+t1_us: 100.0
+t2_us: 80.0

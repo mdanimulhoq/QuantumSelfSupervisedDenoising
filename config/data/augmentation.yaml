@@ -1,0 +1,10 @@
+﻿# N2LN-QEM Data Augmentation Configuration
+# TDD Reference: §4.2.2
+
+bootstrap_enabled: true
+interpolation_enabled: true
+max_bootstrap_ratio: 0.5
+perturbation_scale: 0.01
+seed: 42
+low_shots: 100
+num_bootstrap_samples: 10

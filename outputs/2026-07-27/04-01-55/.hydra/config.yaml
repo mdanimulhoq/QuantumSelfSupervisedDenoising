@@ -1,0 +1,58 @@
+model:
+  name: set_transformer
+  d_model: 64
+  n_heads: 4
+  n_isab: 2
+  n_sab: 1
+  d_ff: 256
+  n_inducing_points: 16
+  dropout: 0.1
+  temperature: 1.0
+  max_qubits: 32
+data:
+  circuits:
+    min_qubits: 2
+    max_qubits: 8
+    min_depth: 2
+    max_depth: 10
+    num_train_circuits: 5000
+    num_val_circuits: 1000
+    num_test_circuits: 1000
+  noise:
+    name: depolarizing
+    depolarizing_p: 0.01
+    readout_error: 0.02
+    t1_us: 100.0
+    t2_us: 80.0
+  collection:
+    low_shots: 100
+    high_shots: 10000
+    noise_scales:
+    - 1.0
+    - 1.5
+    - 2.0
+    - 3.0
+    use_dynamical_decoupling: false
+    data_format: hdf5
+    data_dir: ./data/raw
+training:
+  optimizer: adamw
+  lr_phase1: 0.0003
+  lr_phase3: 0.0001
+  weight_decay: 0.01
+  batch_size: 64
+  epochs_phase1: 100
+  epochs_phase2: 150
+  epochs_phase3: 50
+  grad_clip: 1.0
+  early_stop_patience: 20
+  loss_weights:
+    kl: 1.0
+    tvd: 0.5
+    chi2: 0.1
+    consistency: 0.3
+    physicality: 0.1
+project_name: n2ln-qem
+seed: 42
+device: auto
+output_dir: ./outputs

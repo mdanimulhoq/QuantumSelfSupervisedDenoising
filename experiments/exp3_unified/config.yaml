@@ -1,0 +1,45 @@
+﻿# Experiment 3: Unified N2LN Configuration
+
+experiment:
+  name: "exp3_unified"
+  description: "Joint fine-tuning of SN-D and HN-E with consistency loss"
+
+data:
+  snd_data_dir: "data/raw/exp1_snd"
+  hne_data_dir: "data/raw/exp2_hne"
+  n_qubits: [4, 6, 8]
+  batch_size: 16
+  num_workers: 0
+
+model:
+  d_model: 64
+  n_heads: 4
+  n_isab: 2
+  n_sab: 1
+  d_ff: 256
+  m: 16
+  decoder_hidden: 128
+  dropout: 0.1
+
+checkpoints:
+  sn_checkpoint: "checkpoints/exp1_snd/best_model.pt"
+  hne_checkpoint: "checkpoints/exp2_hne/best_model.pt"
+  output_dir: "checkpoints/exp3_unified"
+
+training:
+  mode: "unified"
+  epochs: 50
+  lr: 1.0e-4
+  weight_decay: 0.01
+  grad_clip: 1.0
+  early_stop_patience: 10
+
+loss:
+  alpha: 1.0
+  beta: 0.5
+  gamma: 0.1
+  consistency: 0.3
+  physicality: 0.1
+
+seed: 42
+device: "cpu"

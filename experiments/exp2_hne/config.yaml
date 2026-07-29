@@ -1,0 +1,54 @@
+﻿# Experiment 2: HN-E Validation Configuration
+
+experiment:
+  name: "exp2_hne"
+  description: "HN-E validation: noise-scaled pairs (λ_high → λ_low)"
+
+data:
+  data_dir: "data/raw/exp2_hne"
+  n_qubits: [4, 6, 8]
+  circuits_per_n: {4: 5, 6: 5, 8: 5}
+  shots: 100
+  noise_scales: [1.0, 1.5, 2.0, 2.5, 3.0]
+  low_scale: 1.0
+  high_scale: 3.0
+
+model:
+  d_model: 64
+  n_heads: 4
+  n_isab: 2
+  n_sab: 1
+  d_ff: 256
+  m: 16
+  decoder_hidden: 128
+  dropout: 0.1
+
+circuit_families:
+  clifford: 0.3
+  random_non_clifford: 0.4
+  vqe: 0.2
+  qaoa: 0.1
+
+noise:
+  depolarizing_p: 0.01
+  amplitude_damping_gamma: 0.01
+  phase_damping_gamma: 0.005
+  readout_p0: 0.02
+  readout_p1: 0.02
+
+training:
+  epochs: 50
+  lr: 3.0e-4
+  weight_decay: 0.01
+  grad_clip: 1.0
+  early_stop_patience: 10
+
+loss:
+  alpha: 1.0
+  beta: 0.5
+  gamma: 0.1
+  physicality: 0.1
+
+seed: 42
+batch_size: 16
+num_workers: 0

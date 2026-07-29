@@ -1,0 +1,38 @@
+{
+  "experiment": "exp1_snd",
+  "description": "SN-D validation: low-shot (100) \u2192 high-shot (100,000)",
+  "config": {
+    "n_qubits": [
+      4,
+      6,
+      8
+    ],
+    "circuits_per_n": {
+      "4": 2000,
+      "6": 1500,
+      "8": 1500
+    },
+    "circuit_families": {
+      "clifford": 0.3,
+      "random_non_clifford": 0.4,
+      "vqe": 0.2,
+      "qaoa": 0.1
+    },
+    "low_shots": 100,
+    "high_shots": 100000,
+    "noise": {
+      "depolarizing_p": 0.01,
+      "readout_p0": 0.02,
+      "readout_p1": 0.02
+    },
+    "seed": 42,
+    "output_dir": "data/raw/exp1_snd",
+    "checkpoint_file": "data/raw/exp1_snd/checkpoint.json"
+  },
+  "train_val_test_split": [
+    0.7,
+    0.15,
+    0.15
+  ],
+  "total_circuits": 5000
+}

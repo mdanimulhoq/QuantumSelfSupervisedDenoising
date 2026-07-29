@@ -1,0 +1,103 @@
+﻿# Experiment 7: Ablation Studies
+
+## Purpose
+Ablation studies to understand contribution of each component:
+1. No positional encoding
+2. No count weighting
+3. No consistency loss
+4. No curriculum learning
+
+## Usage
+`ash
+python experiments/exp7_ablation/run_ablation.py
+@"
+# Experiment 7: Ablation Studies
+
+## Purpose
+Ablation studies to understand contribution of each component:
+1. No positional encoding
+2. No count weighting
+3. No consistency loss
+4. No curriculum learning
+
+## Usage
+`ash
+python experiments/exp7_ablation/run_ablation.py
+
+---
+
+### **ধাপ ২: config.yaml তৈরি করুন**
+
+`powershell
+@"
+# Experiment 7: Ablation Studies Configuration
+
+ablations:
+  baseline:
+    name: "Baseline"
+    description: "Full N2LN model"
+    enabled:
+      positional_encoding: true
+      count_weighting: true
+      consistency_loss: true
+      curriculum: true
+
+  no_pos_encoding:
+    name: "No Positional Encoding"
+    description: "Remove positional encoding from bitstring encoder"
+    enabled:
+      positional_encoding: false
+      count_weighting: true
+      consistency_loss: true
+      curriculum: true
+
+  no_count_weighting:
+    name: "No Count Weighting"
+    description: "Remove count weighting from attention"
+    enabled:
+      positional_encoding: true
+      count_weighting: false
+      consistency_loss: true
+      curriculum: true
+
+  no_consistency:
+    name: "No Consistency Loss"
+    description: "Remove cross-stage consistency loss"
+    enabled:
+      positional_encoding: true
+      count_weighting: true
+      consistency_loss: false
+      curriculum: true
+
+  no_curriculum:
+    name: "No Curriculum"
+    description: "Train all phases simultaneously"
+    enabled:
+      positional_encoding: true
+      count_weighting: true
+      consistency_loss: true
+      curriculum: false
+
+data:
+  data_dir: "data/raw/exp1_snd"
+  n_qubits: [4, 6, 8]
+  batch_size: 16
+
+model:
+  d_model: 64
+  n_heads: 4
+  n_isab: 2
+  n_sab: 1
+  d_ff: 256
+  m: 16
+  decoder_hidden: 128
+  dropout: 0.1
+
+training:
+  epochs: 30
+  lr: 3.0e-4
+  weight_decay: 0.01
+  grad_clip: 1.0
+
+seed: 42
+device: "cpu"

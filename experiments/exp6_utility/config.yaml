@@ -1,0 +1,56 @@
+﻿# Experiment 6: Utility-Scale Hardware (127-qubit)
+
+## Purpose
+Collect data from 127-qubit IBMQ hardware (Brisbane/Kyiv).
+SN-D only mode (shot-noise reduction).
+
+## Prerequisites
+- Step 8.1: IBMQ interface
+- IBMQ account with access to 127-qubit backend
+
+## Usage
+`ash
+python experiments/exp6_utility/collect.py
+@"
+# Experiment 6: Utility-Scale Hardware (127-qubit)
+
+## Purpose
+Collect data from 127-qubit IBMQ hardware (Brisbane/Kyiv).
+SN-D only mode (shot-noise reduction).
+
+## Prerequisites
+- Step 8.1: IBMQ interface
+- IBMQ account with access to 127-qubit backend
+
+## Usage
+`ash
+python experiments/exp6_utility/collect.py
+
+---
+
+### **ধাপ ২: config.yaml তৈরি করুন**
+
+`powershell
+@"
+# Experiment 6: Utility-Scale Hardware Configuration
+
+experiment:
+  name: "exp6_utility"
+  description: "127-qubit hardware data collection (SN-D only)"
+
+data:
+  hardware_backend: "ibmq_brisbane"  # or "ibmq_kyiv"
+  n_qubits: 127
+  circuits: 50
+  low_shots: 100
+  high_shots: 1000
+  max_bitstrings: 256
+
+circuit_families:
+  random: 0.5
+  qaoa: 0.3
+  shallow: 0.2
+
+seed: 42
+batch_size: 1
+num_workers: 0

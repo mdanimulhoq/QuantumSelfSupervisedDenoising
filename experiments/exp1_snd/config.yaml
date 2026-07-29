@@ -1,0 +1,46 @@
+﻿# Experiment 1: SN-D Training Configuration
+
+experiment:
+  name: "exp1_snd"
+  description: "SN-D validation: low-shot → high-shot mapping"
+
+data:
+  data_dir: "data/raw/exp1_snd"
+  n_qubits: [4, 6, 8]
+  circuits_per_n: {4: 2000, 6: 1500, 8: 1500}
+  low_shots: 100
+  high_shots: 100000
+  batch_size: 16
+  num_workers: 0
+
+model:
+  d_model: 64
+  n_heads: 4
+  n_isab: 2
+  n_sab: 1
+  d_ff: 256
+  m: 16
+  decoder_hidden: 128
+  dropout: 0.1
+
+training:
+  mode: "sn_only"
+  epochs: 50
+  lr: 3.0e-4
+  weight_decay: 0.01
+  grad_clip: 1.0
+  early_stop_patience: 10
+
+loss:
+  alpha: 1.0
+  beta: 0.5
+  gamma: 0.1
+  physicality: 0.1
+
+logging:
+  wandb_project: "n2ln-qem"
+  wandb_entity: null
+  log_interval: 10
+
+seed: 42
+device: "cpu"

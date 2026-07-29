@@ -1,0 +1,55 @@
+﻿# Experiment 4: Qubit Scaling (10-30 qubits)
+
+## Purpose
+Test qubit-count generalization using MPS simulator.
+Train on n=4,6 -> test on n=10,15,20,25,30.
+
+## Prerequisites
+- Step 7.1: MPS simulator integration
+
+## Usage
+`ash
+python experiments/exp4_scale/generate_data.py
+
+---
+
+### **ধাপ ৪: config.yaml তৈরি করুন**
+
+`powershell
+@"
+# Experiment 4: Qubit Scaling Configuration
+
+experiment:
+  name: "exp4_scale"
+  description: "Qubit-count generalization (n=10,15,20,25,30 with MPS)"
+
+data:
+  data_dir: "data/raw/exp4_scale"
+  n_qubits: [10, 15, 20, 25, 30]
+  circuits_per_n:
+    10: 50
+    15: 30
+    20: 20
+    25: 10
+    30: 5
+  shots: 1000
+  low_shots: 100
+
+circuit_families:
+  clifford: 0.3
+  random_non_clifford: 0.4
+  vqe: 0.2
+  qaoa: 0.1
+
+noise:
+  depolarizing_p: 0.01
+  readout_p0: 0.02
+  readout_p1: 0.02
+
+mps:
+  max_bond_dimension: 256
+  enable_truncation: true
+
+seed: 42
+batch_size: 8
+num_workers: 0

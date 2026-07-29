@@ -1,0 +1,5 @@
+﻿# Denoising Autoencoder Architecture (TDD 3.5)
+name: autoencoder
+hidden_dims: [256, 128, 64]
+bottleneck_dim: 32
+dropout: 0.1

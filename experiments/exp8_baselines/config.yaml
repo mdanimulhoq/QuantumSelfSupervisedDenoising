@@ -1,0 +1,65 @@
+﻿# Experiment 8: ML-QEM Baselines
+
+## Purpose
+Implement and compare against standard ML-QEM baselines:
+1. CDR (Clifford Data Regression)
+2. IBM ML-QEM (Random Forest + MLP + GNN)
+
+## Usage
+`ash
+python experiments/exp8_baselines/run_baselines.py
+@"
+# Experiment 8: ML-QEM Baselines
+
+## Purpose
+Implement and compare against standard ML-QEM baselines:
+1. CDR (Clifford Data Regression)
+2. IBM ML-QEM (Random Forest + MLP + GNN)
+
+## Usage
+`ash
+python experiments/exp8_baselines/run_baselines.py
+
+---
+
+### **ধাপ ২: config.yaml তৈরি করুন**
+
+`powershell
+@"
+# Experiment 8: ML-QEM Baselines Configuration
+
+baselines:
+  cdr:
+    name: "CDR"
+    description: "Clifford Data Regression"
+    n_clifford_circuits: 1000
+    regressor: "linear"  # or "ridge", "random_forest"
+
+  ml_qem_rf:
+    name: "ML-QEM RF"
+    description: "IBM ML-QEM with Random Forest"
+    estimator: "random_forest"
+    n_estimators: 100
+    max_depth: 10
+
+  ml_qem_mlp:
+    name: "ML-QEM MLP"
+    description: "IBM ML-QEM with MLP"
+    estimator: "mlp"
+    hidden_layers: [64, 32]
+    epochs: 50
+
+  ml_qem_gnn:
+    name: "ML-QEM GNN"
+    description: "IBM ML-QEM with GNN"
+    estimator: "gnn"
+    n_layers: 3
+    hidden_dim: 64
+
+data:
+  data_dir: "data/raw/exp1_snd"
+  n_qubits: [4, 6, 8]
+  batch_size: 16
+
+seed: 42
+device: "cpu"

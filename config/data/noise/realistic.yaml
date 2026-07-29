@@ -1,0 +1,7 @@
+﻿# Realistic IBMQ-like Noise Model
+name: realistic
+depolarizing_p: 0.01
+readout_error: 0.03
+t1_us: 150.0
+t2_us: 100.0
+crosstalk_p: 0.005

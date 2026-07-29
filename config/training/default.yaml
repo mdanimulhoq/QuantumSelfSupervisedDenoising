@@ -1,0 +1,17 @@
+﻿# Training Hyperparameters (TDD 4.2)
+optimizer: adamw
+lr_phase1: 0.0003
+lr_phase3: 0.0001
+weight_decay: 0.01
+batch_size: 64
+epochs_phase1: 100
+epochs_phase2: 150
+epochs_phase3: 50
+grad_clip: 1.0
+early_stop_patience: 20
+loss_weights:
+  kl: 1.0
+  tvd: 0.5
+  chi2: 0.1
+  consistency: 0.3
+  physicality: 0.1

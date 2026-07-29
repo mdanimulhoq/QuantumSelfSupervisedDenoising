@@ -1,0 +1,11 @@
+﻿# Set Transformer Architecture (TDD 3.2-3.3)
+name: set_transformer
+d_model: 64
+n_heads: 4
+n_isab: 2
+n_sab: 1
+d_ff: 256
+n_inducing_points: 16
+dropout: 0.1
+temperature: 1.0
+max_qubits: 32

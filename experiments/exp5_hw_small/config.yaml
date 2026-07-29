@@ -1,0 +1,77 @@
+﻿# Experiment 5: Real Hardware Small Scale (7-qubit)
+
+## Purpose
+Fine-tune N2LN model on real IBMQ hardware data (7-qubit).
+Characterize sim-to-hardware transfer gap.
+
+## Prerequisites
+- Step 6.1: Unified N2LN checkpoint
+- Step 8.1: IBMQ interface
+
+## Usage
+`ash
+python experiments/exp5_hw_small/finetune.py
+@"
+# Experiment 5: Real Hardware Small Scale (7-qubit)
+
+## Purpose
+Fine-tune N2LN model on real IBMQ hardware data (7-qubit).
+Characterize sim-to-hardware transfer gap.
+
+## Prerequisites
+- Step 6.1: Unified N2LN checkpoint
+- Step 8.1: IBMQ interface
+
+## Usage
+`ash
+python experiments/exp5_hw_small/finetune.py
+
+---
+
+### **ধাপ ২: config.yaml তৈরি করুন**
+
+`powershell
+@"
+# Experiment 5: Real Hardware Small Scale Configuration
+
+experiment:
+  name: "exp5_hw_small"
+  description: "Fine-tune on real 7-qubit IBMQ hardware"
+
+data:
+  hardware_backend: "ibmq_nairobi"
+  n_qubits: [7]
+  hardware_circuits: 50
+  shots: 1000
+
+model:
+  d_model: 64
+  n_heads: 4
+  n_isab: 2
+  n_sab: 1
+  d_ff: 256
+  m: 16
+  decoder_hidden: 128
+  dropout: 0.1
+
+checkpoints:
+  base_checkpoint: "checkpoints/exp3_unified/best_model.pt"
+  output_dir: "checkpoints/exp5_hw_small"
+
+fine_tune:
+  epochs: 20
+  lr: 1.0e-5
+  weight_decay: 0.01
+  grad_clip: 1.0
+  early_stop_patience: 5
+
+loss:
+  alpha: 1.0
+  beta: 0.5
+  gamma: 0.1
+  consistency: 0.1
+  physicality: 0.1
+
+seed: 42
+batch_size: 4
+num_workers: 0

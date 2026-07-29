@@ -1,0 +1,7 @@
+﻿# Data Collection Parameters (TDD 5.2)
+low_shots: 100
+high_shots: 10000
+noise_scales: [1.0, 1.5, 2.0, 3.0]
+use_dynamical_decoupling: false
+data_format: hdf5
+data_dir: ./data/raw

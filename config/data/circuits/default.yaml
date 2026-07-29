@@ -1,0 +1,8 @@
+﻿# Circuit Generation Parameters (TDD 5.1)
+min_qubits: 2
+max_qubits: 8
+min_depth: 2
+max_depth: 10
+num_train_circuits: 5000
+num_val_circuits: 1000
+num_test_circuits: 1000

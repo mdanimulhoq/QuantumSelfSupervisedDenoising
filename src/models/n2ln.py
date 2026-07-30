@@ -65,6 +65,10 @@ class N2LNQEM(nn.Module):
             temperature=1.0,
         )
 
+        # 🔥 CRITICAL FIX: Share encoder with decoder
+        # Without this, decoder uses fallback projection which doesn't train
+        self.decoder.set_bitstring_encoder(self.encoder)
+
         self.mode = 'unified'  # 'sn_only' | 'hn_only' | 'unified'
 
     def forward(self, bitstrings, counts, mode=None):

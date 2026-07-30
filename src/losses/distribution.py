@@ -75,13 +75,19 @@ def composite_dist_loss(
     Returns:
         Composite loss (scalar)
     """
-    # Ensure pred and target have same shape
+    # 🔥 FIX: Shape mismatch হলে Error দিন (লুকোচুরি বন্ধ)
     if pred.shape != target.shape:
-        # Handle mismatched shapes by truncating to min size
-        min_dim = min(pred.shape[1], target.shape[1])
-        pred = pred[:, :min_dim]
-        target = target[:, :min_dim]
-    
+        raise ValueError(
+            f"Shape mismatch in composite_dist_loss: "
+            f"pred={pred.shape}, target={target.shape}. "
+            "Ensure both distributions have the same support size."
+        )
+
+    # 🔥 FIX: Renormalize to ensure proper probability distributions
+    # (This handles any numerical drift from padding/truncation)
+    pred = pred / pred.sum(dim=-1, keepdim=True).clamp_min(eps)
+    target = target / target.sum(dim=-1, keepdim=True).clamp_min(eps)
+
     loss = 0.0
     if alpha > 0:
         loss += alpha * kl_loss(pred, target, eps)

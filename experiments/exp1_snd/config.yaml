@@ -32,10 +32,10 @@ training:
   early_stop_patience: 10
 
 loss:
-  alpha: 1.0
-  beta: 0.5
-  gamma: 0.1
-  physicality: 0.1
+  alpha: 0.3    # KL weight (কম)
+  beta: 1.0     # TVD weight (বেশি)
+  gamma: 0.0    # Chi2 বন্ধ (অস্থিরতা কমাতে)
+  physicality: 0.0
 
 logging:
   wandb_project: "n2ln-qem"

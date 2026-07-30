@@ -29,6 +29,57 @@ from src.losses.physicality import PhysicalityLoss
 
 
 # =============================================================================
+# Helper: Align low and high distributions to union support
+# =============================================================================
+
+def align_support(low_bs, low_probs, high_bs, high_probs):
+    """Align low and high distributions to a union support.
+
+    Args:
+        low_bs: (M1, n) bitstrings from low-shot measurement
+        low_probs: (M1, 1) probabilities from low-shot measurement
+        high_bs: (M2, n) bitstrings from high-shot measurement
+        high_probs: (M2,) probabilities from high-shot measurement
+
+    Returns:
+        union_bs: (M, n) sorted union of all bitstrings
+        low_aligned: (M, 1) probabilities aligned to union support
+        high_aligned: (M,) probabilities aligned to union support
+    """
+    def to_key(row):
+        return tuple(int(x) for x in row.tolist())
+
+    support = {}
+
+    # Low shot entries
+    for bs, p in zip(low_bs, low_probs.squeeze(-1)):
+        key = to_key(bs)
+        if key not in support:
+            support[key] = [0.0, 0.0]
+        support[key][0] = float(p)
+
+    # High shot entries
+    for bs, p in zip(high_bs, high_probs):
+        key = to_key(bs)
+        if key not in support:
+            support[key] = [0.0, 0.0]
+        support[key][1] = float(p)
+
+    # Deterministic ordering for reproducibility
+    keys = sorted(support.keys())
+
+    union_bs = torch.tensor(keys, dtype=torch.long)
+    low_aligned = torch.tensor([support[k][0] for k in keys], dtype=torch.float32)
+    high_aligned = torch.tensor([support[k][1] for k in keys], dtype=torch.float32)
+
+    # Normalize (ensure sums to 1)
+    low_aligned = low_aligned / low_aligned.sum().clamp_min(1e-8)
+    high_aligned = high_aligned / high_aligned.sum().clamp_min(1e-8)
+
+    return union_bs, low_aligned.unsqueeze(1), high_aligned
+
+
+# =============================================================================
 # Dataset Class
 # =============================================================================
 
@@ -88,11 +139,20 @@ class SNDDataset(Dataset):
     
     def __getitem__(self, idx):
         item = self.data[idx]
+
+        # 🔥 FIX: Align low and high to union support
+        bitstrings, counts, target_sn = align_support(
+            item['low_bitstrings'],
+            item['low_probs'],
+            item['high_bitstrings'],
+            item['high_probs'],
+        )
+
         return {
-            'bitstrings': item['low_bitstrings'],
-            'counts': item['low_probs'],
-            'target_sn': item['high_probs'],
-            'target_hn': item['high_probs'],  # Not used in SN-D only
+            'bitstrings': bitstrings,
+            'counts': counts,
+            'target_sn': target_sn,
+            'target_hn': target_sn.clone(),  # Not used in SN-D only
             'n_qubits': item['n_qubits'],
         }
 

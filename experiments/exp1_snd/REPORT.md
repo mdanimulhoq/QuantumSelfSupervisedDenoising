@@ -11,13 +11,13 @@
 ### TVD Comparison
 | Metric | Raw vs High | SN-D vs High | Improvement |
 |--------|-------------|--------------|-------------|
-| TVD | 0.1795 | 0.6566 | -265.8% |
-| Fidelity | 0.8118 | 0.3063 | -62.3% |
-| MAE | 0.0044 | 0.0163 | -268.3% |
+| TVD | 0.3123 | 0.3216 | -3.0% |
+| Fidelity | 0.7761 | 0.8594 | 10.7% |
+| MAE | 0.0024 | 0.0025 | -3.0% |
 
 ## Success Criterion (TDD §1.3)
 - **Goal**: SN-D TVD <= 50% of raw low-shot TVD
-- **Result**: SN-D TVD = 0.6566 vs Raw TVD = 0.1795
+- **Result**: SN-D TVD = 0.3216 vs Raw TVD = 0.3123
 - **Status**: ❌ FAILED
 
 ## Plots

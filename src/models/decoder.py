@@ -40,23 +40,12 @@ class DualHeadDecoder(nn.Module):
             nn.Linear(hidden_size, d_model),
         )
 
-        # For positional encoding of bitstrings (if needed)
-        self.bitstring_encoder = None  # Will be set externally
-        
-        # Dictionary to store projections for different qubit counts
-        self._fallback_projs = nn.ModuleDict()
+        # This will be set externally via set_bitstring_encoder()
+        self.bitstring_encoder = None
 
     def set_bitstring_encoder(self, encoder):
         """Set the bitstring encoder (from main model)."""
         self.bitstring_encoder = encoder
-
-    def _get_fallback_proj(self, n_qubits: int, device: torch.device):
-        """Get or create a fallback projection for given qubit count."""
-        key = f"proj_{n_qubits}"
-        if key not in self._fallback_projs:
-            proj = nn.Linear(n_qubits, self.d_model).to(device)
-            self._fallback_projs[key] = proj
-        return self._fallback_projs[key]
 
     def forward(self, z: torch.Tensor, bitstrings: torch.Tensor):
         """Forward pass.
@@ -70,21 +59,21 @@ class DualHeadDecoder(nn.Module):
             hn_dist: (B, M) HN-E distribution
         """
         B, M, n = bitstrings.shape
-        device = z.device
 
-        # Encode bitstrings if encoder is available, else use simple projection
-        if self.bitstring_encoder is not None:
-            # Encode each bitstring to d-dim features
-            bs_embeddings = self.bitstring_encoder(bitstrings)  # (B, M, d)
-        else:
-            # Fallback: linear projection for each qubit count
-            flat_bs = bitstrings.float().view(B * M, n)  # (B*M, n)
-            proj = self._get_fallback_proj(n, device)
-            bs_embeddings = proj(flat_bs).view(B, M, self.d_model)  # (B, M, d)
+        # 🔥 CRITICAL FIX: Ensure encoder is set
+        if self.bitstring_encoder is None:
+            raise RuntimeError(
+                "Decoder.bitstring_encoder is not set. "
+                "Please call set_bitstring_encoder() after decoder creation."
+            )
+
+        # Encode bitstrings using the shared encoder
+        bs_embeddings = self.bitstring_encoder(bitstrings)  # (B, M, d)
 
         # SN-D branch
         sn_z = self.sn_head(z)  # (B, d)
         sn_z_exp = sn_z.unsqueeze(1)  # (B, 1, d)
+        # Dot product with bitstring embeddings
         sn_logits = torch.sum(sn_z_exp * bs_embeddings, dim=-1)  # (B, M)
         sn_logits = sn_logits / self.temperature
         sn_dist = F.softmax(sn_logits, dim=-1)

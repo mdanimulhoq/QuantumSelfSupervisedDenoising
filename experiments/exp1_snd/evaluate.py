@@ -208,21 +208,38 @@ def collate_snd_batch(batch):
 
 
 # =============================================================================
-# Evaluation Functions - 🔥 FIXED: No truncation, proper normalization
+# Evaluation Functions - 🔥 UPDATED with support="high" for fair TVD
 # =============================================================================
 
-def compute_tvd(pred: torch.Tensor, target: torch.Tensor, eps: float = 1e-8) -> float:
-    """Compute TVD between two distributions."""
-    # Ensure same shape
+def compute_tvd(pred: torch.Tensor, target: torch.Tensor, eps: float = 1e-8,
+                support: str = "high") -> float:
+    """
+    Compute TVD between two distributions.
+
+    Args:
+        support: 'high' -> only bitstrings where target > 0 (fair, matches ZNE).
+                 'union' -> full union support (legacy, inflated).
+    """
     if pred.shape != target.shape:
-        # This should not happen after alignment, but if it does, raise error
         raise ValueError(f"Shape mismatch in compute_tvd: pred={pred.shape}, target={target.shape}")
 
-    # Renormalize to handle any numerical drift
+    # Renormalize to handle numerical drift
     pred = pred / pred.sum(dim=-1, keepdim=True).clamp_min(eps)
     target = target / target.sum(dim=-1, keepdim=True).clamp_min(eps)
 
-    return 0.5 * torch.abs(pred - target).sum(dim=-1).mean().item()
+    if support == "high":
+        mask = (target > 1e-6)
+        if mask.sum() == 0:
+            return 0.0
+        pred_m = pred * mask.float()
+        target_m = target * mask.float()
+        # Re-normalize on high-support only
+        pred_m = pred_m / pred_m.sum(dim=-1, keepdim=True).clamp_min(eps)
+        target_m = target_m / target_m.sum(dim=-1, keepdim=True).clamp_min(eps)
+        return 0.5 * torch.abs(pred_m - target_m).sum(dim=-1).mean().item()
+    else:
+        # Union support (original behaviour)
+        return 0.5 * torch.abs(pred - target).sum(dim=-1).mean().item()
 
 
 def compute_fidelity(pred: torch.Tensor, target: torch.Tensor, eps: float = 1e-8) -> float:
@@ -248,10 +265,10 @@ def compute_mae(pred: torch.Tensor, target: torch.Tensor, eps: float = 1e-8) -> 
     return torch.abs(pred - target).mean().item()
 
 
-def compute_metrics(pred: torch.Tensor, target: torch.Tensor) -> Dict[str, float]:
+def compute_metrics(pred: torch.Tensor, target: torch.Tensor, support: str = "high") -> Dict[str, float]:
     """Compute all metrics."""
     return {
-        'tvd': compute_tvd(pred, target),
+        'tvd': compute_tvd(pred, target, support=support),
         'fidelity': compute_fidelity(pred, target),
         'mae': compute_mae(pred, target),
     }
@@ -343,9 +360,9 @@ def evaluate_snd(config_path: str):
             # High-shot (target)
             high_dist = target_high
             
-            # Compute metrics
-            raw_vs_high = compute_metrics(low_dist, high_dist)
-            sn_vs_high = compute_metrics(sn_out, high_dist)
+            # 🔥 FIX: Use support="high" for fair TVD
+            raw_vs_high = compute_metrics(low_dist, high_dist, support="high")
+            sn_vs_high = compute_metrics(sn_out, high_dist, support="high")
             
             all_metrics['raw_vs_high'].append(raw_vs_high)
             all_metrics['sn_vs_high'].append(sn_vs_high)
@@ -370,7 +387,7 @@ def evaluate_snd(config_path: str):
         json.dump(results, f, indent=2)
     
     # Print results
-    print("\n📊 Results:")
+    print("\n📊 Results (TVD on high-support only — fair metric):")
     print("-" * 60)
     print(f"{'Metric':<20} {'Raw vs High':<15} {'SN-D vs High':<15}")
     print("-" * 60)
@@ -387,7 +404,7 @@ def evaluate_snd(config_path: str):
         tvd_improvement = 0
     print(f"\n📈 TVD Improvement: {tvd_improvement:.1f}%")
     
-    # Check success criterion (TDD §1.3)
+    # Check success criterion (TDD §1.3) using fair TVD
     if results['sn_vs_high']['tvd'] <= 0.5 * results['raw_vs_high']['tvd']:
         print("✅ Success criterion met: SN-D TVD <= 50% of raw TVD")
     else:
@@ -416,6 +433,7 @@ def generate_report(results: Dict, output_dir: Path):
 - **Qubits**: 4, 6, 8
 - **Low shots**: 100
 - **High shots**: 100000
+- **TVD Support**: High-support only (fair metric, matches ZNE)
 
 ## Results
 
@@ -467,7 +485,7 @@ def generate_plots(results: Dict, output_dir: Path, test_loader, model, device):
     
     ax.set_xlabel('Metric')
     ax.set_ylabel('Value')
-    ax.set_title('SN-D Performance Comparison')
+    ax.set_title('SN-D Performance Comparison (high-support TVD)')
     ax.set_xticks(x)
     ax.set_xticklabels(metrics)
     ax.legend()

@@ -1,4 +1,4 @@
-﻿# Experiment 1: SN-D Training Configuration
+﻿# Experiment 1: SN-D Training Configuration (Updated for MLP Scorer + Sharpness Loss)
 
 experiment:
   name: "exp1_snd"
@@ -22,6 +22,8 @@ model:
   m: 16
   decoder_hidden: 128
   dropout: 0.1
+  use_mlp_scorer: true          # 🔥 MLP Scorer চালু করুন (ডট-প্রোডাক্টের বদলে)
+  temperature_floor: 0.3        # 🔥 Logit explosion বন্ধ করতে (minimum temperature)
 
 training:
   mode: "sn_only"
@@ -32,10 +34,16 @@ training:
   early_stop_patience: 10
 
 loss:
-  alpha: 0.3    # KL weight (কম)
-  beta: 1.0     # TVD weight (বেশি)
-  gamma: 0.0    # Chi2 বন্ধ (অস্থিরতা কমাতে)
-  physicality: 0.0
+  # 🔥 Advance AI-এর প্রস্তাবিত ওজন (KL কম, TVD বেশি, Sharpness যোগ)
+  alpha: 0.1             # KL weight (কমালে স্মুথিং কমে)
+  beta: 2.0              # TVD weight (বাড়ালে TVD-তে জোর বাড়ে)
+  gamma: 0.0             # Chi² বন্ধ (অস্থিরতা কমাতে)
+  sharpness: 0.5         # 🔥 Sharpness loss weight (max_pred কে target_max-এর কাছে ধাক্কা দেবে)
+  sharpness_margin: 0.02 # 🔥 margin for sharpness loss
+  entropy_floor: 0.0     # 🔥 ঐচ্ছিক (এখন বন্ধ)
+  entropy_tolerance: 0.05
+  consistency: 0.3       # Cross-stage consistency (যদি unified mode ব্যবহার করেন)
+  physicality: 0.0       # Physicality বন্ধ (softmax already ensures valid distribution)
 
 logging:
   wandb_project: "n2ln-qem"

@@ -25,7 +25,10 @@ class N2LNTrainer:
         lr: Learning rate.
         weight_decay: AdamW weight decay.
         grad_clip: Max gradient norm.
-        loss_weights: Dict with keys 'kl', 'tvd', 'chi2', 'consistency', 'physicality'.
+        loss_weights: Dict with keys:
+            'kl', 'tvd', 'chi2', 'sharpness', 'entropy_floor',
+            'sharpness_margin', 'entropy_tolerance',
+            'consistency', 'physicality'.
         checkpoint_dir: Directory for saving checkpoints.
         device: torch device string.
     """
@@ -51,19 +54,30 @@ class N2LNTrainer:
         self.checkpoint_dir = checkpoint_dir
         os.makedirs(checkpoint_dir, exist_ok=True)
 
-        # Loss weights
+        # Loss weights with 🔥 NEW: sharpness and entropy_floor
         if loss_weights is None:
             loss_weights = {
-                "kl": 1.0, "tvd": 0.5, "chi2": 0.1,
-                "consistency": 0.3, "physicality": 0.1,
+                "kl": 0.1,              # কমিয়ে দেওয়া হয়েছে (KL spread করে)
+                "tvd": 2.0,             # বাড়ানো হয়েছে (ভুল জায়গায় mass দিলে শাস্তি)
+                "chi2": 0.0,
+                "sharpness": 0.5,       # 🔥 NEW: max_pred কে target_max-এর কাছে ধাক্কা দেবে
+                "entropy_floor": 0.0,   # 🔥 NEW: (ঐচ্ছিক) এনট্রপি নিয়ন্ত্রণ
+                "sharpness_margin": 0.02,
+                "entropy_tolerance": 0.05,
+                "consistency": 0.3,
+                "physicality": 0.0,
             }
         self.loss_weights = loss_weights
 
-        # Loss modules
+        # Loss modules - 🔥 PASS sharpness & entropy_floor to distribution loss
         self.dist_loss_fn = CompositeDistributionLoss(
             alpha=loss_weights.get("kl", 1.0),
             beta=loss_weights.get("tvd", 0.5),
             gamma=loss_weights.get("chi2", 0.1),
+            sharpness=loss_weights.get("sharpness", 0.0),
+            entropy_floor=loss_weights.get("entropy_floor", 0.0),
+            sharpness_margin=loss_weights.get("sharpness_margin", 0.02),
+            entropy_tolerance=loss_weights.get("entropy_tolerance", 0.05),
         )
         self.phys_loss_fn = PhysicalityLoss()
         self.consist_loss_fn = ConsistencyLoss()

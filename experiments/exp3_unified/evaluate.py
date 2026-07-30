@@ -186,15 +186,36 @@ def collate_eval_batch(batch):
 
 
 # =============================================================================
-# Metrics
+# Metrics - 🔥 UPDATED with support="high" for fair TVD
 # =============================================================================
 
-def compute_tvd(pred, target, eps=1e-8):
+def compute_tvd(pred: torch.Tensor, target: torch.Tensor, eps: float = 1e-8,
+                support: str = "high") -> float:
+    """
+    Compute TVD between two distributions.
+
+    Args:
+        support: 'high' -> only bitstrings where target > 0 (fair, matches ZNE).
+                 'union' -> full union support (legacy, inflated).
+    """
     if pred.shape != target.shape:
         raise ValueError(f"Shape mismatch: pred={pred.shape}, target={target.shape}")
+    
     pred = pred / pred.sum(dim=-1, keepdim=True).clamp_min(eps)
     target = target / target.sum(dim=-1, keepdim=True).clamp_min(eps)
-    return 0.5 * torch.abs(pred - target).sum(dim=-1).mean().item()
+
+    if support == "high":
+        mask = (target > 1e-6)
+        if mask.sum() == 0:
+            return 0.0
+        pred_m = pred * mask.float()
+        target_m = target * mask.float()
+        # Re-normalize on high-support only
+        pred_m = pred_m / pred_m.sum(dim=-1, keepdim=True).clamp_min(eps)
+        target_m = target_m / target_m.sum(dim=-1, keepdim=True).clamp_min(eps)
+        return 0.5 * torch.abs(pred_m - target_m).sum(dim=-1).mean().item()
+    else:
+        return 0.5 * torch.abs(pred - target).sum(dim=-1).mean().item()
 
 
 def compute_fidelity(pred, target, eps=1e-8):
@@ -213,9 +234,10 @@ def compute_mae(pred, target, eps=1e-8):
     return torch.abs(pred - target).mean().item()
 
 
-def compute_metrics(pred, target):
+def compute_metrics(pred, target, support: str = "high"):
+    """Compute all metrics with support parameter."""
     return {
-        'tvd': compute_tvd(pred, target),
+        'tvd': compute_tvd(pred, target, support=support),
         'fidelity': compute_fidelity(pred, target),
         'mae': compute_mae(pred, target),
     }
@@ -309,7 +331,7 @@ def evaluate_unified(config_path: str):
             zne_results = json.load(f)
         print("✅ ZNE results loaded")
     
-    # Evaluate
+    # Evaluate - 🔥 FIX: use support="high" for fair TVD
     results = {
         'raw': [],
         'sn_d': [],
@@ -317,7 +339,7 @@ def evaluate_unified(config_path: str):
         'unified': [],
     }
     
-    print("\nEvaluating on test set...")
+    print("\nEvaluating on test set (high-support TVD — fair metric)...")
     print("=" * 60)
     
     with torch.no_grad():
@@ -328,22 +350,22 @@ def evaluate_unified(config_path: str):
             
             # Raw
             raw_dist = counts.squeeze(-1)
-            results['raw'].append(compute_metrics(raw_dist, target))
+            results['raw'].append(compute_metrics(raw_dist, target, support="high"))
             
             # SN-D
             if 'sn_d' in models:
                 sn_out, _ = models['sn_d'](bitstrings, counts, mode='sn_only')
-                results['sn_d'].append(compute_metrics(sn_out, target))
+                results['sn_d'].append(compute_metrics(sn_out, target, support="high"))
             
             # HN-E
             if 'hn_e' in models:
                 _, hn_out = models['hn_e'](bitstrings, counts, mode='hn_only')
-                results['hn_e'].append(compute_metrics(hn_out, target))
+                results['hn_e'].append(compute_metrics(hn_out, target, support="high"))
             
             # Unified
             if 'unified' in models:
                 unified_out, _ = models['unified'](bitstrings, counts, mode='unified')
-                results['unified'].append(compute_metrics(unified_out, target))
+                results['unified'].append(compute_metrics(unified_out, target, support="high"))
     
     # Average results
     avg_results = {}
@@ -355,7 +377,7 @@ def evaluate_unified(config_path: str):
             avg_results[key] = avg_metrics
     
     # Print results
-    print("\n📊 Results:")
+    print("\n📊 Results (high-support TVD — fair metric):")
     print("-" * 70)
     print(f"{'Method':<15} {'TVD':<12} {'Fidelity':<12} {'MAE':<12}")
     print("-" * 70)
@@ -366,7 +388,7 @@ def evaluate_unified(config_path: str):
             print(f"{method.upper():<15} {r['tvd']:<12.4f} {r['fidelity']:<12.4f} {r['mae']:<12.4f}")
     
     if zne_results:
-        print(f"{'ZNE':<15} {zne_results['zne_tvd']:<12.4f} {'-':<12} {'-':<12}")
+        print(f"{'ZNE':<15} {zne_results.get('zne_tvd', 0.0):<12.4f} {'-':<12} {'-':<12}")
     
     print("-" * 70)
     
@@ -384,6 +406,7 @@ def evaluate_unified(config_path: str):
     
     # Save results
     output_dir = Path('experiments/exp3_unified')
+    os.makedirs(output_dir, exist_ok=True)
     with open(output_dir / 'eval_results.json', 'w') as f:
         json.dump(avg_results, f, indent=2)
     

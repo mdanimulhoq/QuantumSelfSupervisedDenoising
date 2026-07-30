@@ -1,8 +1,8 @@
 ﻿"""Train HN-E head for Experiment 2 (TDD §4.2, §6.4).
 
 Trains the HN-E (Hardware-Noise Extrapolation) head on noise-scaled pairs.
-Loads SN-D checkpoint from Experiment 1 and freezes it.
-Uses Phase 2 curriculum: Joint training (SN-D frozen, HN-E train).
+Loads SN-D checkpoint for initialization (optional).
+Phase 2: Joint training — all parameters (encoder, transformer, both heads) are trainable.
 """
 
 import os
@@ -13,7 +13,6 @@ import torch
 import numpy as np
 from tqdm import tqdm
 from pathlib import Path
-from datetime import datetime
 import h5py
 from torch.utils.data import DataLoader, Dataset
 
@@ -27,57 +26,132 @@ from src.utils.device import get_device
 
 
 # =============================================================================
-# Dataset Class for HN-E
+# Helper: Align support (same as SN-D)
+# =============================================================================
+
+def align_support(low_bs, low_probs, high_bs, high_probs):
+    """Align low and high distributions to a union support."""
+    def to_key(row):
+        return tuple(int(x) for x in row.tolist())
+
+    support = {}
+
+    # Low shot entries (low noise target)
+    for bs, p in zip(low_bs, low_probs.squeeze(-1)):
+        key = to_key(bs)
+        if key not in support:
+            support[key] = [0.0, 0.0]
+        support[key][0] = float(p)
+
+    # High shot entries (high noise input)
+    for bs, p in zip(high_bs, high_probs):
+        key = to_key(bs)
+        if key not in support:
+            support[key] = [0.0, 0.0]
+        support[key][1] = float(p)
+
+    # Deterministic ordering
+    keys = sorted(support.keys())
+
+    union_bs = torch.tensor(keys, dtype=torch.long)
+    low_aligned = torch.tensor([support[k][0] for k in keys], dtype=torch.float32)
+    high_aligned = torch.tensor([support[k][1] for k in keys], dtype=torch.float32)
+
+    # Normalize
+    low_aligned = low_aligned / low_aligned.sum().clamp_min(1e-8)
+    high_aligned = high_aligned / high_aligned.sum().clamp_min(1e-8)
+
+    return union_bs, low_aligned.unsqueeze(1), high_aligned
+
+
+# =============================================================================
+# Dataset Class
 # =============================================================================
 
 class HNEDataset(Dataset):
-    """Dataset for HN-E training with noise-scaled pairs."""
+    """Dataset for HN-E training."""
     
     def __init__(self, h5_path: str):
         self.h5_path = h5_path
         self.data = []
         
         with h5py.File(h5_path, 'r') as f:
+            # Detect noise scales from keys
+            bitstring_keys = [key for key in f.keys() if key.startswith('bitstrings_')]
+            scales = []
+            for key in bitstring_keys:
+                try:
+                    scale_str = key.split('_')[1]
+                    scales.append(float(scale_str))
+                except:
+                    pass
+            scales = sorted(scales)
+            if not scales:
+                raise ValueError("No noise scales found in HDF5 file.")
+            
+            self.high_scale = max(scales)
+            self.low_scale = min(scales)
+            
             n_samples = len(f['n_qubits'])
-            noise_scales = json.loads(f.attrs['noise_scales'])
-            
-            # Use λ=3.0 as high noise, λ=1.0 as low noise (target)
-            self.high_scale = max(noise_scales)
-            self.low_scale = min(noise_scales)
-            
             for i in range(n_samples):
-                # Load high-noise data (λ=3.0)
-                high_bs = f[f'bitstrings_{self.high_scale}'][i]
-                high_shape = f[f'bitstrings_{self.high_scale}_shape'][i]
-                high_bs = high_bs.reshape(high_shape)
-                high_probs = f[f'probs_{self.high_scale}'][i]
-                high_probs = high_probs.astype(np.float32)
-                
-                # Load low-noise data (λ=1.0) - target
-                low_bs = f[f'bitstrings_{self.low_scale}'][i]
-                low_shape = f[f'bitstrings_{self.low_scale}_shape'][i]
-                low_bs = low_bs.reshape(low_shape)
-                low_probs = f[f'probs_{self.low_scale}'][i]
-                low_probs = low_probs.astype(np.float32)
-                
-                self.data.append({
-                    'high_bitstrings': torch.tensor(high_bs, dtype=torch.long),
-                    'high_probs': torch.tensor(high_probs, dtype=torch.float32).unsqueeze(1),
-                    'low_bitstrings': torch.tensor(low_bs, dtype=torch.long),
-                    'low_probs': torch.tensor(low_probs, dtype=torch.float32),
-                    'n_qubits': f['n_qubits'][i],
-                })
+                try:
+                    # Get actual qubit count
+                    n_qubits = f['n_qubits'][i]
+                    
+                    # High-noise data (input)
+                    high_bs_flat = f[f'bitstrings_{self.high_scale}'][i]
+                    high_shape = f[f'bitstrings_{self.high_scale}_shape'][i]
+                    # Handle flat data properly
+                    if len(high_shape) == 2 and high_bs_flat.size == high_shape[0] * high_shape[1]:
+                        high_bs = high_bs_flat.reshape(high_shape[0], high_shape[1])
+                    else:
+                        high_bs = high_bs_flat.reshape(-1, n_qubits)
+                    
+                    high_probs = f[f'probs_{self.high_scale}'][i]
+                    high_probs = high_probs.astype(np.float32)
+                    
+                    # Low-noise data (target)
+                    low_bs_flat = f[f'bitstrings_{self.low_scale}'][i]
+                    low_shape = f[f'bitstrings_{self.low_scale}_shape'][i]
+                    if len(low_shape) == 2 and low_bs_flat.size == low_shape[0] * low_shape[1]:
+                        low_bs = low_bs_flat.reshape(low_shape[0], low_shape[1])
+                    else:
+                        low_bs = low_bs_flat.reshape(-1, n_qubits)
+                    
+                    low_probs = f[f'probs_{self.low_scale}'][i]
+                    low_probs = low_probs.astype(np.float32)
+                    
+                    self.data.append({
+                        'high_bs': torch.tensor(high_bs, dtype=torch.long),
+                        'high_probs': torch.tensor(high_probs, dtype=torch.float32).unsqueeze(1),
+                        'low_bs': torch.tensor(low_bs, dtype=torch.long),
+                        'low_probs': torch.tensor(low_probs, dtype=torch.float32),
+                        'n_qubits': n_qubits,
+                    })
+                except Exception as e:
+                    print(f"⚠️ Skipping sample {i}: {e}")
+                    continue
     
     def __len__(self):
         return len(self.data)
     
     def __getitem__(self, idx):
         item = self.data[idx]
+        
+        # Align support: high (input) and low (target)
+        bitstrings, counts, target_sn = align_support(
+            item['high_bs'],      # input high-noise bitstrings
+            item['high_probs'],   # input high-noise probs
+            item['low_bs'],       # target low-noise bitstrings
+            item['low_probs'],    # target low-noise probs
+        )
+        
+        # For HN-E, we use high-noise as input, low-noise as target
         return {
-            'bitstrings': item['high_bitstrings'],
-            'counts': item['high_probs'],
-            'target_sn': item['low_probs'],  # Not used (SN-D frozen)
-            'target_hn': item['low_probs'],
+            'bitstrings': bitstrings,
+            'counts': counts,                        # high-noise counts
+            'target_sn': target_sn,                  # not used (SN-D frozen)
+            'target_hn': target_sn,                  # low-noise target for HN-E
             'n_qubits': item['n_qubits'],
         }
 
@@ -97,6 +171,7 @@ def collate_hne_batch(batch):
     for b in batch:
         n_q = b['n_qubits']
         
+        # Pad bitstrings
         bs = b['bitstrings']
         if bs.shape[1] < max_n_qubits:
             pad_len = max_n_qubits - bs.shape[1]
@@ -109,6 +184,7 @@ def collate_hne_batch(batch):
             bs = torch.cat([bs, bs_pad], dim=0)
         batched_bitstrings.append(bs)
         
+        # Pad counts
         counts = b['counts']
         pad_len_count = max_bs - counts.shape[0]
         if pad_len_count > 0:
@@ -116,12 +192,13 @@ def collate_hne_batch(batch):
             counts = torch.cat([counts, counts_pad], dim=0)
         batched_counts.append(counts)
         
+        # Pad target
         target = b['target_hn']
         pad_len_target = max_bs_target - target.shape[0]
         if pad_len_target > 0:
             target_pad = torch.zeros((pad_len_target,), dtype=target.dtype)
             target = torch.cat([target, target_pad], dim=0)
-        batched_target_sn.append(target)  # Not used
+        batched_target_sn.append(target)  # not used
         batched_target_hn.append(target)
         
         batched_n_qubits.append(n_q)
@@ -202,32 +279,32 @@ def train_hne(config_path: str):
     )
     model.to(device)
     
-    # Load SN-D checkpoint (Step 4.2)
+    # Load SN-D checkpoint for initialization (optional, TDD Phase 2 uses it)
     sn_checkpoint_path = Path('checkpoints/exp1_snd/best_model.pt')
     if sn_checkpoint_path.exists():
         print(f"Loading SN-D checkpoint from: {sn_checkpoint_path}")
         checkpoint = torch.load(sn_checkpoint_path, map_location=device)
         model.load_state_dict(checkpoint['model_state_dict'], strict=False)
-        
-        # Freeze SN-D head and encoder/transformer
-        for name, param in model.named_parameters():
-            if 'sn_head' in name or 'encoder' in name or 'transformer' in name:
-                param.requires_grad = False
-        print("   ✅ SN-D head, encoder, and transformer frozen")
+        print("   ✅ SN-D weights loaded for initialization")
     else:
         print(f"⚠️ SN-D checkpoint not found: {sn_checkpoint_path}")
         print("   Training HN-E from scratch")
     
+    # 🔥 TDD-সঙ্গতিপূর্ণ: সব প্যারামিটার trainable রাখুন (কোনও ফ্রিজ নয়)
+    for param in model.parameters():
+        param.requires_grad = True
+    print("   ✅ All parameters (encoder, transformer, both heads) are trainable")
+    
     print(f"Model parameters: {sum(p.numel() for p in model.parameters()):,}")
     print(f"Trainable parameters: {sum(p.numel() for p in model.parameters() if p.requires_grad):,}")
     
-    # Loss weights (Phase 2: HN-E only)
+    # Loss weights (Phase 2: HN-E only, but backbone updates)
     loss_weights = {
         'kl': config['loss']['alpha'],
         'tvd': config['loss']['beta'],
         'chi2': config['loss']['gamma'],
         'physicality': config['loss']['physicality'],
-        'consistency': 0.0,  # Not used in Phase 2
+        'consistency': 0.0,  # Phase 2 doesn't use consistency loss
     }
     
     # Create trainer
@@ -251,7 +328,7 @@ def train_hne(config_path: str):
     print("=" * 60)
     
     for epoch in range(epochs):
-        # Train HN-E only
+        # Train HN-E only (but backbone updates because all params are trainable)
         train_metrics = trainer.train_epoch(
             train_loader,
             mode='hn_only',

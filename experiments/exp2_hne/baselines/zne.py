@@ -13,7 +13,19 @@ import numpy as np
 import h5py
 from pathlib import Path
 from typing import Dict, List, Tuple
-from scipy.optimize import curve_fit
+
+
+def get_noise_scales_from_keys(f) -> List[float]:
+    """Extract noise scales from HDF5 dataset keys."""
+    bitstring_keys = [key for key in f.keys() if key.startswith('bitstrings_')]
+    scales = []
+    for key in bitstring_keys:
+        try:
+            scale_str = key.split('_')[1]
+            scales.append(float(scale_str))
+        except:
+            pass
+    return sorted(scales)
 
 
 class ZNE:
@@ -33,10 +45,7 @@ class ZNE:
         scales = sorted(self.noise_scales)
         fit_scales = [s for s in scales if s <= max(scales)]
         
-        # Get measurements for each scale
         probs_list = [measurements[s] for s in fit_scales]
-        
-        # Align all to same length
         probs_list = self._align_probs(probs_list)
         
         if self.extrapolation_order == 1:
@@ -78,12 +87,11 @@ class ZNE:
         ])
         
         try:
-            # Solve for each element
             p0 = []
             for i in range(len(p1)):
                 b = np.array([p1[i], p2[i], p3[i]])
                 coeffs = np.linalg.solve(A, b)
-                p0.append(coeffs[2])  # Constant term
+                p0.append(coeffs[2])
             return np.clip(np.array(p0), 0, 1)
         except np.linalg.LinAlgError:
             return self._linear_extrapolation(scales, probs_list)
@@ -100,7 +108,6 @@ class ZNE:
         if degree == 0:
             return probs[0]
         
-        # Fit polynomial for each index
         p0 = []
         for i in range(probs.shape[1]):
             coeffs = np.polyfit(scales, probs[:, i], degree)
@@ -133,8 +140,11 @@ def compute_zne_baseline(config_path: str):
     
     # Load test data
     with h5py.File(test_path, 'r') as f:
+        # 🔥 FIX: Detect noise scales from keys instead of attributes
+        noise_scales = get_noise_scales_from_keys(f)
+        print(f"Detected noise scales: {noise_scales}")
+        
         n_samples = len(f['n_qubits'])
-        noise_scales = json.loads(f.attrs['noise_scales'])
         
         all_raw_results = []
         all_zne_results = []

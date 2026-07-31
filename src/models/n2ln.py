@@ -1,4 +1,4 @@
-﻿"""N2LN-QEM: Main model wrapper (TDD §2.6 + §3.1).
+"""N2LN-QEM: Main model wrapper (TDD §2.6 + §3.1).
 
 Assembles: BitstringEncoder + CountWeightedSetTransformer + DualHeadDecoder.
 Supports three modes: sn_only, hn_only, unified.
@@ -24,6 +24,8 @@ class N2LNQEM(nn.Module):
         decoder_hidden: Hidden dimension in decoder
         dropout: Dropout rate
         max_qubits: Maximum qubits (for positional encoding)
+        use_mlp_scorer: Use MLP scorer instead of dot-product (TDD §3.4)
+        temperature_floor: Minimum temperature to prevent logit explosion
     """
 
     def __init__(
@@ -37,6 +39,8 @@ class N2LNQEM(nn.Module):
         decoder_hidden: int = 128,
         dropout: float = 0.1,
         max_qubits: int = 20,
+        use_mlp_scorer: bool = True,
+        temperature_floor: float = 0.3,
     ):
         super().__init__()
 
@@ -63,10 +67,12 @@ class N2LNQEM(nn.Module):
             n_max_qubits=max_qubits,
             hidden_size=decoder_hidden,
             temperature=1.0,
+            dropout=dropout,
+            use_mlp_scorer=use_mlp_scorer,
+            temperature_floor=temperature_floor,
         )
 
-        # 🔥 CRITICAL FIX: Share encoder with decoder
-        # Without this, decoder uses fallback projection which doesn't train
+        # Share encoder with decoder
         self.decoder.set_bitstring_encoder(self.encoder)
 
         self.mode = 'unified'  # 'sn_only' | 'hn_only' | 'unified'

@@ -1,4 +1,4 @@
-﻿"""Train SN-D head for Experiment 1 (TDD §4.2, §6.4).
+"""Train SN-D head for Experiment 1 (TDD §4.2, §6.4).
 
 Trains the SN-D (Shot-Noise Denoising) head on low-shot → high-shot pairs.
 Uses Phase 1 curriculum: SN-D only (epochs 0-100).
@@ -270,6 +270,7 @@ def train_snd(config_path: str):
         )
     
     # Create model
+    # 🔥 FIX: use_mlp_scorer এবং temperature_floor প্যারামিটার যোগ করা হলো
     model = N2LNQEM(
         d_model=config['model']['d_model'],
         n_heads=config['model']['n_heads'],
@@ -280,18 +281,26 @@ def train_snd(config_path: str):
         decoder_hidden=config['model']['decoder_hidden'],
         dropout=config['model']['dropout'],
         max_qubits=config['data']['n_qubits'][-1],
+        use_mlp_scorer=config['model'].get('use_mlp_scorer', True),        # 🔥 NEW
+        temperature_floor=config['model'].get('temperature_floor', 0.3),  # 🔥 NEW
     )
     model.to(device)
     
     print(f"Model parameters: {sum(p.numel() for p in model.parameters()):,}")
     
     # Loss weights
+    # 🔥 CRITICAL FIX: sharpness এবং সংশ্লিষ্ট পরামিতি loss_weights-এ যোগ করা হলো
     loss_weights = {
         'kl': config['loss']['alpha'],
         'tvd': config['loss']['beta'],
         'chi2': config['loss']['gamma'],
         'physicality': config['loss']['physicality'],
         'consistency': 0.0,  # Not used in Phase 1
+        # 🔥 নিচের ৪টি লাইন যোগ করুন (এটাই সবচেয়ে গুরুত্বপূর্ণ)
+        'sharpness': config['loss'].get('sharpness', 0.0),
+        'sharpness_margin': config['loss'].get('sharpness_margin', 0.02),
+        'entropy_floor': config['loss'].get('entropy_floor', 0.0),
+        'entropy_tolerance': config['loss'].get('entropy_tolerance', 0.05),
     }
     
     # Create trainer

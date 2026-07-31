@@ -1,7 +1,4 @@
-﻿"""Training loop for N2LN-QEM (TDD §4.2).
-
-AdamW optimizer, gradient clipping, wandb logging, checkpointing.
-"""
+"""Training loop for N2LN-QEM (TDD §4.2)."""
 
 import os
 from typing import Dict, Optional
@@ -18,21 +15,6 @@ from src.utils.seeding import set_seed
 
 
 class N2LNTrainer:
-    """Trainer for N2LN-QEM model.
-
-    Args:
-        model: N2LNQEM model instance.
-        lr: Learning rate.
-        weight_decay: AdamW weight decay.
-        grad_clip: Max gradient norm.
-        loss_weights: Dict with keys:
-            'kl', 'tvd', 'chi2', 'sharpness', 'entropy_floor',
-            'sharpness_margin', 'entropy_tolerance',
-            'consistency', 'physicality'.
-        checkpoint_dir: Directory for saving checkpoints.
-        device: torch device string.
-    """
-
     def __init__(
         self,
         model: nn.Module,
@@ -47,6 +29,9 @@ class N2LNTrainer:
         self.device = get_device() if device is None else torch.device(device)
         self.model.to(self.device)
 
+        # 🔥 FIX: Ensure lr is float
+        lr = float(lr) if not isinstance(lr, float) else lr
+
         self.optimizer = torch.optim.AdamW(
             model.parameters(), lr=lr, weight_decay=weight_decay
         )
@@ -54,22 +39,13 @@ class N2LNTrainer:
         self.checkpoint_dir = checkpoint_dir
         os.makedirs(checkpoint_dir, exist_ok=True)
 
-        # Loss weights with 🔥 NEW: sharpness and entropy_floor
         if loss_weights is None:
             loss_weights = {
-                "kl": 0.1,              # কমিয়ে দেওয়া হয়েছে (KL spread করে)
-                "tvd": 2.0,             # বাড়ানো হয়েছে (ভুল জায়গায় mass দিলে শাস্তি)
-                "chi2": 0.0,
-                "sharpness": 0.5,       # 🔥 NEW: max_pred কে target_max-এর কাছে ধাক্কা দেবে
-                "entropy_floor": 0.0,   # 🔥 NEW: (ঐচ্ছিক) এনট্রপি নিয়ন্ত্রণ
-                "sharpness_margin": 0.02,
-                "entropy_tolerance": 0.05,
-                "consistency": 0.3,
-                "physicality": 0.0,
+                "kl": 1.0, "tvd": 0.5, "chi2": 0.1,
+                "consistency": 0.3, "physicality": 0.1,
             }
         self.loss_weights = loss_weights
 
-        # Loss modules - 🔥 PASS sharpness & entropy_floor to distribution loss
         self.dist_loss_fn = CompositeDistributionLoss(
             alpha=loss_weights.get("kl", 1.0),
             beta=loss_weights.get("tvd", 0.5),
@@ -86,22 +62,7 @@ class N2LNTrainer:
         self.best_loss = float("inf")
         self.patience_counter = 0
 
-    def train_epoch(
-        self,
-        train_loader: DataLoader,
-        mode: str = "sn_d_only",
-        epoch: int = 0,
-    ) -> Dict[str, float]:
-        """Train for one epoch.
-
-        Args:
-            train_loader: DataLoader yielding dict with 'bitstrings', 'counts', 'target_sn', 'target_hn'
-            mode: Training mode - "sn_only", "hn_only", or "unified"
-            epoch: Current epoch number.
-
-        Returns:
-            Dict of average loss values.
-        """
+    def train_epoch(self, train_loader: DataLoader, mode: str = "sn_d_only", epoch: int = 0) -> Dict[str, float]:
         self.model.train()
         total_loss = 0.0
         total_dist = 0.0
@@ -110,18 +71,14 @@ class N2LNTrainer:
         n_batches = 0
 
         for batch in train_loader:
-            # Extract tensors from dict
             bitstrings = batch['bitstrings'].to(self.device)
             counts = batch['counts'].to(self.device)
             target_sn = batch['target_sn'].to(self.device)
             target_hn = batch['target_hn'].to(self.device)
 
             self.optimizer.zero_grad()
-
-            # Forward pass
             sn_out, hn_out = self.model(bitstrings, counts, mode=mode)
 
-            # Compute losses
             loss = 0.0
             dist_loss = 0.0
             phys_loss = 0.0
@@ -140,19 +97,14 @@ class N2LNTrainer:
             if self.loss_weights.get("physicality", 0) > 0:
                 loss += self.loss_weights["physicality"] * phys_loss
 
-            # Consistency loss (unified mode only)
             if mode == "unified" and sn_out is not None and hn_out is not None:
                 consist_loss = self.consist_loss_fn(hn_out, sn_out)
                 if self.loss_weights.get("consistency", 0) > 0:
                     loss += self.loss_weights["consistency"] * consist_loss
 
-            # Backward
             loss.backward()
-
-            # Gradient clipping
             if self.grad_clip > 0:
                 torch.nn.utils.clip_grad_norm_(self.model.parameters(), self.grad_clip)
-
             self.optimizer.step()
 
             total_loss += loss.item()
@@ -168,22 +120,10 @@ class N2LNTrainer:
             "consist_loss": total_consist / n_batches,
         }
 
-    def validate(
-        self, val_loader: DataLoader, mode: str = "sn_only"
-    ) -> Dict[str, float]:
-        """Validate model on validation set.
-
-        Args:
-            val_loader: Validation DataLoader.
-            mode: Evaluation mode.
-
-        Returns:
-            Dict of validation metrics.
-        """
+    def validate(self, val_loader: DataLoader, mode: str = "sn_only") -> Dict[str, float]:
         self.model.eval()
         total_loss = 0.0
         n_batches = 0
-
         with torch.no_grad():
             for batch in val_loader:
                 bitstrings = batch['bitstrings'].to(self.device)
@@ -192,7 +132,6 @@ class N2LNTrainer:
                 target_hn = batch['target_hn'].to(self.device)
 
                 sn_out, hn_out = self.model(bitstrings, counts, mode=mode)
-
                 loss = 0.0
                 if mode in ["sn_only", "unified"] and sn_out is not None:
                     loss += self.dist_loss_fn(sn_out, target_sn)
@@ -201,18 +140,9 @@ class N2LNTrainer:
 
                 total_loss += loss.item()
                 n_batches += 1
-
         return {"val_loss": total_loss / n_batches}
 
     def save_checkpoint(self, filename: str = "checkpoint.pt") -> str:
-        """Save model checkpoint.
-
-        Args:
-            filename: Checkpoint filename.
-
-        Returns:
-            Full path to saved checkpoint.
-        """
         path = os.path.join(self.checkpoint_dir, filename)
         torch.save(
             {
@@ -226,11 +156,6 @@ class N2LNTrainer:
         return path
 
     def load_checkpoint(self, filename: str = "checkpoint.pt") -> None:
-        """Load model checkpoint.
-
-        Args:
-            filename: Checkpoint filename.
-        """
         path = os.path.join(self.checkpoint_dir, filename)
         checkpoint = torch.load(path, map_location=self.device)
         self.model.load_state_dict(checkpoint["model_state_dict"])
@@ -239,10 +164,5 @@ class N2LNTrainer:
         self.best_loss = checkpoint["best_loss"]
 
     def set_lr(self, lr: float) -> None:
-        """Update learning rate.
-
-        Args:
-            lr: New learning rate.
-        """
         for param_group in self.optimizer.param_groups:
             param_group["lr"] = lr

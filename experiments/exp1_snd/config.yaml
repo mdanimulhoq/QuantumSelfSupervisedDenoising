@@ -1,51 +1,52 @@
-data:
-  batch_size: 16
-  circuits_per_n:
-    4: 2000
-    6: 1500
-    8: 1500
-  data_dir: data/raw/exp1_snd
-  high_shots: 100000
-  low_shots: 100
-  n_qubits:
-  - 4
-  - 6
-  - 8
-  num_workers: 0
-device: cpu
+# Experiment 1: SN-D Training (BIG MODEL d_model=128)
 experiment:
-  description: "SN-D validation: low-shot \u2192 high-shot mapping"
-  name: exp1_snd
-logging:
-  log_interval: 10
-  wandb_entity: null
-  wandb_project: n2ln-qem
-loss:
-  alpha: 0.1
-  beta: 3.5
-  consistency: 0.0
-  entropy_floor: 0.0
-  entropy_tolerance: 0.05
-  gamma: 0.0
-  physicality: 0.0
-  sharpness: 1.6
-  sharpness_margin: 0.02
+  name: "exp1_snd_big"
+  description: "SN-D validation with very big model"
+
+data:
+  data_dir: "data/raw/exp1_snd"
+  n_qubits: [4, 6, 8]
+  circuits_per_n: {4: 2000, 6: 1500, 8: 1500}
+  low_shots: 100
+  high_shots: 100000
+  batch_size: 8
+  num_workers: 0
+
 model:
-  d_ff: 256
-  d_model: 64
-  decoder_hidden: 128
-  dropout: 0.1
-  m: 16
-  n_heads: 4
+  d_model: 128
+  n_heads: 8
   n_isab: 2
   n_sab: 1
-  temperature_floor: 0.01
-  use_mlp_scorer: true
-seed: 42
+  d_ff: 512
+  m: 16
+  decoder_hidden: 256
+  dropout: 0.1
+  use_mlp_scorer: false
+  temperature_floor: 0.1
+
 training:
-  early_stop_patience: 10
+  mode: "sn_only"
   epochs: 50
-  grad_clip: 1.0
   lr: 0.0003
-  mode: sn_only
   weight_decay: 0.01
+  grad_clip: 1.0
+  early_stop_patience: 20
+
+loss:
+  alpha: 0.1
+  beta: 3.0
+  gamma: 0.0
+  sharpness: 2.0
+  sharpness_margin: 0.02
+  entropy_floor: 0.0
+  entropy_tolerance: 0.05
+  consistency: 0.0
+  physicality: 0.0
+
+logging:
+  wandb_project: "n2ln-qem"
+  wandb_entity: null
+  log_interval: 10
+
+seed: 42
+device: "cpu"

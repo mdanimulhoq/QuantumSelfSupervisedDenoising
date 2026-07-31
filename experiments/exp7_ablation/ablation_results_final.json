@@ -1,0 +1,9 @@
+{
+  "Unified (Full)": 0.47628555405020717,
+  "SN-D Only": 0.4532148958174884,
+  "HN-E Only": 0.47628555405020717,
+  "Unified (No PosEnc)": 0.47628555405020717,
+  "Unified (No CountWeight)": 0.47634706526130444,
+  "CDR Baseline": 0.11369639737875112,
+  "RF Baseline (ML-QEM)": 0.26087328902824897
+}

@@ -1,0 +1,19 @@
+{
+  "phase_4_snd_tvd": 0.154,
+  "phase_5_hne_tvd": 0.4993,
+  "phase_6_unified_sn_tvd": 0.4319,
+  "phase_6_unified_hne_tvd": 0.4543,
+  "phase_8_hw_avg_tvd": 0.4538,
+  "phase_8_hw_std_tvd": 0.2226,
+  "ablation": {
+    "CDR Baseline": 0.1137,
+    "RF Baseline (ML-QEM)": 0.2609,
+    "SN-D Only": 0.4532,
+    "Unified (Full)": 0.4763,
+    "HN-E Only": 0.4763,
+    "Unified (No PosEnc)": 0.4763,
+    "Unified (No CountWeight)": 0.4763
+  },
+  "pipeline_version": "step10.4_final",
+  "timestamp": "2026-07-31 22:23:41"
+}

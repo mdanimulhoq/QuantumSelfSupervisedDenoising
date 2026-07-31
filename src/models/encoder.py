@@ -1,36 +1,27 @@
-"""Bitstring Encoder with mask support."""
+"""Bitstring Encoder with position-aware embeddings (fixes Hamming-weight collapse)."""
 import torch
 import torch.nn as nn
-
-class PositionalEncoding(nn.Module):
-    def __init__(self, d_model, n_max_qubits=32):
-        super().__init__()
-        pe = torch.zeros(n_max_qubits, d_model)
-        position = torch.arange(0, n_max_qubits, dtype=torch.float).unsqueeze(1)
-        div_term = torch.exp(torch.arange(0, d_model, 2).float() * (-torch.log(torch.tensor(10000.0)) / d_model))
-        pe[:, 0::2] = torch.sin(position * div_term)
-        pe[:, 1::2] = torch.cos(position * div_term)
-        self.register_buffer("pe", pe)
-
-    def forward(self, x):
-        B, M, n, d = x.shape
-        pe = self.pe[:n, :].unsqueeze(0).unsqueeze(0)
-        return x + pe
 
 class BitstringEncoder(nn.Module):
     def __init__(self, d_model=64, n_max_qubits=20):
         super().__init__()
         self.d_model = d_model
-        self.qubit_embed = nn.Embedding(2, d_model)
-        self.pos_encoding = PositionalEncoding(d_model, n_max_qubits)
+        self.n_max_qubits = n_max_qubits
+        # প্রতিটা (position, bit-value) জোড়ার জন্য আলাদা vector
+        self.qubit_embed = nn.Embedding(2 * n_max_qubits, d_model)
 
     def forward(self, bitstrings):
         B, M, n = bitstrings.shape
-        bitstrings_clean = bitstrings.clone()
-        bitstrings_clean[bitstrings_clean == -1] = 0
-        qubit_emb = self.qubit_embed(bitstrings_clean.long())
-        qubit_emb = self.pos_encoding(qubit_emb)
-        pooled = qubit_emb.mean(dim=2)
-        mask = (bitstrings == -1).all(dim=-1)
+        pad_mask = (bitstrings == -1)
+        bits = bitstrings.clone()
+        bits[pad_mask] = 0
+
+        positions = torch.arange(n, device=bitstrings.device).view(1, 1, n)
+        idx = positions * 2 + bits.long()
+        qubit_emb = self.qubit_embed(idx)
+        qubit_emb = qubit_emb.masked_fill(pad_mask.unsqueeze(-1), 0.0)
+
+        pooled = qubit_emb.sum(dim=2)
+        mask = pad_mask.all(dim=-1)
         embeddings = pooled * (~mask).unsqueeze(-1).float()
         return embeddings, mask
